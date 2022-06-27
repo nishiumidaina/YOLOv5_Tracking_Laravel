@@ -7,14 +7,14 @@
         <div class="card-body">
             <form method='POST' action="/store">
                 @csrf
-                <input type='hidden' name='user_id' value="{{ $user['id'] }}">
+                <input type='hidden' name='users_id' value="{{ $user['id'] }}">
                 <div class="form-group">
-                    <label for="name">地点名</label>
-                    <input name='name' type="text" class="form-control" id="name" placeholder="地点名を入力">
-                    <label for="url">URL(YouTube)</label>
-                    <input name='url' type="text" class="form-control" id="url" placeholder="URLを入力">
-                    <label for="address">住所</label>
-                    <input name='address' type="text" class="form-control" id="address" placeholder="住所を入力">
+                    <label for="spots_name">地点名</label>
+                    <input name='spots_name' type="text" class="form-control" id="spots_name" placeholder="地点名を入力">
+                    <label for="spots_url">URL(YouTube)</label>
+                    <input name='spots_url' type="text" class="form-control" id="spots_url" placeholder="URLを入力">
+                    <label for="spots_address">住所</label>
+                    <input name='spots_address' type="text" class="form-control" id="spots_address" placeholder="住所を入力">
                 </div>
                 <button type='submit' class="btn btn-primary btn-lg">保存</button>
             </form>

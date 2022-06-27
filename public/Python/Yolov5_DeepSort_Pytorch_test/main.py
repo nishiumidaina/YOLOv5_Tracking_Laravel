@@ -6,9 +6,10 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
-
+import math
 import sys
 sys.path.insert(0, './yolov5')
+import datetime
 
 import argparse
 import os
@@ -51,6 +52,8 @@ def detect(opt):
     parser.add_argument('--source', type=str, default='0', help='source')
     parser.add_argument('--classes', nargs='+', type=int, help='filter by class: --class 0, or --class 16 17')
     parser.add_argument('--spot_id', type=str, default=0)
+    parser.add_argument('--save-txt', action='store_true', help='save MOT compliant results to *.txt')
+
     args = parser.parse_args()
 
     spot_id = args.spot_id
@@ -62,31 +65,30 @@ def detect(opt):
         port='3306',
         user='0000',
         password='0000',
-        database='gisproject'
+        database='projectd'
     )
     cur = conn.cursor(buffered=True)
-    cur.execute("SELECT id, name, status FROM spots WHERE id = %s" % spot_id)
+    cur.execute("SELECT spots_id, spots_name, spots_status FROM spots WHERE spots_id = %s" % spot_id)
     db_lis = cur.fetchall()
-    conn.commit()
-    # DB操作終了
-    cur.close()
+
     if 'Run' in db_lis[0][2]:
         spot_id = db_lis[0][0]
         cur = conn.cursor(buffered=True)
-        sql = ("UPDATE spots SET status = %s WHERE id = %s")
+        sql = ("UPDATE spots SET spots_status = %s WHERE spots_id = %s")
         param = ('Run_process',db_lis[0][0])
         cur.execute(sql,param)
-        conn.commit()
-        shutil.rmtree('Python/Yolov5_DeepSort_Pytorch_test/runs/')
-        cur.close()
+        shutil.rmtree('Python/Yolov5_DeepSort_Pytorch_test/runs/')        
+    conn.commit()
+    cur.close()
     #print(spot_id)
 
-
-
-    #計測時間記録用のグローバル変数
+    #計測時間記録用
     id_count = []
     id_collect = []
     id_violation = []
+    bicycle_lis = []
+    id_list = []
+
     out, source, yolo_model, deep_sort_model, show_vid, save_vid, save_txt, imgsz, evaluate, half, \
         project, exist_ok, update, save_crop = \
         opt.output, opt.source, opt.yolo_model, opt.deep_sort_model, opt.show_vid, opt.save_vid, \
@@ -190,7 +192,24 @@ def detect(opt):
 
         # Process detections
         for i, det in enumerate(pred):  # detections per image
-            
+            #停止ボタンによる処理
+            cur = conn.cursor(buffered=True)
+            #print(spot_id)
+            cur.execute("SELECT spots_id, spots_name, spots_status FROM spots WHERE spots_id = '%s'" % spot_id)
+            db_lis_last = cur.fetchall()
+            conn.commit()
+            cur.close()
+            if 'Stop' in db_lis_last[0][2]:
+                cur = conn.cursor(buffered=True)
+                sql = ("UPDATE spots SET spots_status = %s WHERE spots_id = %s")
+                param2 = ('None',spot_id)
+                cur.execute(sql,param2)
+                cur.execute('DELETE FROM bicycles WHERE spots_id = %s',(spot_id,))
+                shutil.rmtree('Python/Yolov5_DeepSort_Pytorch_test/runs/track/')
+                conn.commit()
+                cur.close()
+                exit()
+
             seen += 1
             if webcam:  # nr_sources >= 1
                 p, im0, _ = path[i], im0s[i].copy(), dataset.count
@@ -225,44 +244,35 @@ def detect(opt):
                     n = (det[:, -1] == c).sum()  # detections per class
                     s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
                     # Print counter
-                    n_1 = (det[:, -1] == 0).sum() #ラベルAの総数をカウント
+                    n_1 = (det[:, -1] == 2).sum() #ラベルAの総数をカウント
                     a = f"{n_1} "#{'A'}{'s' * (n_1 > 1)}, "
                     cv2.putText(im0, "BOX1_count" , (20, 50), 0, 1.0, (71, 99, 255), 3)
                     cv2.putText(im0, "A : " + str(a), (20, 100), 0, 1.5, (71, 99, 255), 3)
 
                     #停止ボタンによる処理
-                    conn = mysql.connector.connect(
-                        host='127.0.0.1',
-                        port='3306',
-                        user='0000',
-                        password='0000',
-                        database='gisproject'
-                    )
                     cur = conn.cursor(buffered=True)
                     #print(spot_id)
-                    cur.execute("SELECT id, name, status FROM spots WHERE id = '%s'" % spot_id)
+                    cur.execute("SELECT spots_id, spots_name, spots_status FROM spots WHERE spots_id = '%s'" % spot_id)
                     db_lis_last = cur.fetchall()
-                    conn.commit()
-                    #print(db_lis_last)
-                    cur.close()
+
                     if 'Stop' in db_lis_last[0][2]:
                         cur = conn.cursor(buffered=True)
-                        sql = ("UPDATE spots SET status = %s WHERE id = %s")
-                        param2 = ('None',db_lis_last[0][0])
+                        sql = ("UPDATE spots SET spots_status = %s WHERE spots_id = %s")
+                        param2 = ('None',spot_id)
                         cur.execute(sql,param2)
+                        cur.execute('DELETE FROM bicycles WHERE spots_id = %s',(spot_id,))
+                        shutil.rmtree('Python/Yolov5_DeepSort_Pytorch_test/runs/track/')
                         conn.commit()
                         cur.close()
-                        shutil.rmtree('Python/Yolov5_DeepSort_Pytorch_test/runs/track/')
                         exit()
                     elif 'Run_process' in db_lis_last[0][2]:
                         cur = conn.cursor(buffered=True)
-                        sql = ("UPDATE spots SET count = %s WHERE id = %s")
-                        param2 = (a,db_lis_last[0][0])
+                        sql = ("UPDATE spots SET spots_count = %s WHERE spots_id = %s")
+                        param2 = (a,spot_id)
                         cur.execute(sql,param2)
-                        conn.commit()
-                        cur.close()
                         # DB操作終了
-                    
+                    conn.commit()
+                    cur.close()                    
                 xywhs = xyxy2xywh(det[:, 0:4])
                 confs = det[:, 4]
                 clss = det[:, 5]
@@ -283,39 +293,45 @@ def detect(opt):
                         id2 = str(id)
                         cls = output[5]
                         conf = output[6]
-                        #dt_now = str(datetime.datetime.now())
-                        dt_now = str(time.time())
-                        id_count2 = list(itertools.chain.from_iterable(id_count))
-                        time_lis =['','','','正常']
-                        
-                        if not id2 in id_count2:
-                            dt_start = [id2,dt_now]
-                            id_count.append(dt_start)
-                                              
 
-                        for i2 in range(len(id_count)):
-                            if id2 in id_count[i2][0]:
-                                time_lis[1] = id_count[i2][1]
-                        time_lis[0] = id2
-                        time_lis[2] = dt_now
+                        #print(id,output[0],output[1])
+                        id_out = int(math.floor(id))
+                        X_out= int(math.floor(output[0]))
+                        Y_out= int(math.floor(output[1]))
+                        #自転車の座標処理
+                        cur = conn.cursor(buffered=True)
+                        #print(spot_id)
+                        cur.execute("SELECT get_id FROM bicycles WHERE spots_id = '%s'" % spot_id)
+                        bicycle_lis = cur.fetchall()
+                        #print(bicycle_lis)
+                        if not id in bicycle_lis:
+                            cur.execute("INSERT INTO bicycles (spots_id,get_id,bicycles_x_coordinate,bicycles_y_coordinate) VALUES (%s, %s, %s, %s)", (spot_id,id_out,X_out,Y_out))
+                        elif id in bicycle_lis:
+                            cur.execute("UPDATE bicycles SET bicycles_x_coordinate = %s,bicycles_y_coordinate = %s WHERE get_id = %s AND spots_id = %s",(X_out, Y_out,id_out, spot_id))
+
+                        cur.execute("SELECT updated_at, created_at FROM bicycles WHERE spots_id = %s AND get_id = %s",(spot_id, id_out))
+                        time_lis = cur.fetchall()
+                        #print(time_lis)
 
                         #放置時間計測
-                        time_dif =Decimal(time_lis[2]) - Decimal(time_lis[1])
-                        print(time_dif)
-                        out_time = 15 #違反時間を設定(秒数)
-                        if time_dif >= out_time:
-                            time_lis[3] = '違反車両'
+                        out_time = 60 #違反時間を設定(秒数)
+                        time_dif = time_lis[0][0] - time_lis[0][1]
+                        time_total = time_dif.total_seconds() 
+                        if time_total >= out_time:
+                            #time_lis[3] = '違反車両'
+                            cur.execute("UPDATE bicycles SET bicycles_status = %s WHERE get_id = %s AND spots_id = %s",('違反', id_out, spot_id))
                             if not id2 in id_violation:
                                 id_violation.append(id2)
-                        id_collect.append(id2) 
-                        #確認用
-                        print(time_lis)                        
+                        id_collect.append(int(math.floor(float(id2))))                           
+                        conn.commit()
+                        cur.close()                         
+                        #座標                     
                         if save_txt:
                             # to MOT format
-                            bbox_left = output[0]
-                            bbox_top = output[1]
-                            bbox_w = output[2] - output[0]
-                            bbox_h = output[3] - output[1]
+                            bbox_left = output[0]#X座標
+                            bbox_top = output[1]#Y座標
+                            bbox_w = output[2] - output[0]#幅
+                            bbox_h = output[3] - output[1]#高さ
                             # Write MOT compliant results to file
                             with open(txt_path + '.txt', 'a') as f:
                                 f.write(('%g ' * 10 + '\n') % (frame_idx + 1, id, bbox_left,  # MOT format
@@ -328,18 +344,22 @@ def detect(opt):
                             if save_crop:
                                 txt_file_name = txt_file_name if (isinstance(path, list) and len(path) > 1) else ''
                                 save_one_box(bboxes, imc, file=save_dir / 'crops' / txt_file_name / names[c] / f'{id}' / f'{p.stem}.jpg', BGR=True)
-                    #確認用
-                    #無くなったIDを削除する
-                    for i3 in range(len(id_count)):
-                        if not id_count[i3][0] in id_collect:
-                            id_count[i3] = "None"
-                    target = "None"  #Noneを取り除く
-                    id_count = [item for item in id_count if item != target]
-                    print(id_collect)#現在のトラッキング
-                    print(id_count)
-                    print(id_violation)#違反車両
-
-                    id_collect.clear()
+                #確認用
+                #無くなったIDを削除する
+                for i3 in range(len(id_count)):
+                    if not id_count[i3][0] in id_collect:
+                        id_count[i3] = "None"
+                target = "None"  #Noneを取り除く
+                id_count = [item for item in id_count if item != target]
+                for i_b in range(len(bicycle_lis)):
+                    if not bicycle_lis[i_b][0] in id_collect:
+                        cur = conn.cursor(buffered=True)
+                        cur.execute("UPDATE bicycles SET bicycles_status = %s WHERE get_id = %s AND spots_id = %s",('None', bicycle_lis[i_b][0], spot_id)) 
+                print(id_collect)#現在のトラッキング
+                #print(id_count)
+                #print(id_violation)#違反車両
+                bicycle_lis.clear()
+                id_collect.clear()
                 LOGGER.info(f'{s}Done. YOLO:({t3 - t2:.3f}s), DeepSort:({t5 - t4:.3f}s)')
 
             else:

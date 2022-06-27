@@ -1,10 +1,10 @@
 <?php
-$id = $_POST['id'];
+$id = $_POST['users_id'];
 
 // データベース接続
 
 $host = 'localhost';
-$dbname = 'gisproject';
+$dbname = 'projectd';
 $dbuser = '0000';
 $dbpass = '0000';
 
@@ -15,18 +15,17 @@ $dbh = new PDO("mysql:host={$host};dbname={$dbname};charset=utf8mb4", $dbuser,$d
  exit;
 }
 // データ取得
-$sql = "SELECT id, name, count, status FROM spots WHERE user_id = ?";
+$sql = "SELECT spots_id, spots_name, spots_count, spots_status FROM spots WHERE users_id = ?";
 $stmt = ($dbh->prepare($sql));
 $stmt->execute(array($id));
 
-//あらかじめ配列を生成しておき、while文で回します。
 $spot_list = array();
 while($row = $stmt->fetch(PDO::FETCH_ASSOC)){
  $spot_list[]=array(
-  'id' =>$row['id'],
-  'name'=>$row['name'],
-  'count'=>$row['count'],
-  'status'=>$row['status']
+  'spots_id' =>$row['spots_id'],
+  'spots_name'=>$row['spots_name'],
+  'spots_count'=>$row['spots_count'],
+  'spots_status'=>$row['spots_status']
  );
 }
 

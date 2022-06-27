@@ -1,8 +1,5 @@
 import subprocess
-import schedule
-import time
 import mysql.connector
-import multiprocessing
 
 # コネクション作成
 conn = mysql.connector.connect(
@@ -10,12 +7,12 @@ conn = mysql.connector.connect(
     port='3306',
     user='0000',
     password='0000',
-    database='gisproject'
+    database='projectd'
 )
 # 接続状況確認
 print(conn.is_connected())
 cur = conn.cursor(buffered=True)
-cur.execute("SELECT id, name, status, url FROM spots")
+cur.execute("SELECT spots_id, spots_name, spots_status, spots_url FROM spots")
 db_lis = cur.fetchall()
 print(db_lis[0])
 # DB操作終了
@@ -25,11 +22,11 @@ for i in range(len(db_lis)):
     if db_lis[i][2] == 'Start':
         #BDの値を変更
         cur = conn.cursor(buffered=True)
-        sql = ("UPDATE spots SET status = %s WHERE id = %s")
+        sql = ("UPDATE spots SET spots_status = %s WHERE spots_id = %s")
         param = ('Run',db_lis[i][0])
         cur.execute(sql,param)
         conn.commit()
         cur.close()
         spot_id = db_lis[i][0]        
-        N = subprocess.Popen('python Python/Yolov5_DeepSort_Pytorch_test/main.py --source "%s" --class 0 --spot_id %s' % (url,int(spot_id)),shell=True)
+        N = subprocess.Popen('python Python/Yolov5_DeepSort_Pytorch_test/main.py --source "%s" --class 2 --spot_id %s' % (url,int(spot_id)),shell=True)
 

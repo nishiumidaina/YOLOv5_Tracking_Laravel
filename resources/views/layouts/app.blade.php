@@ -110,20 +110,20 @@
                 //ピンの表示
                     var data = @json($spots);
                     var datas = data[0];
-                    var user_id = 0;
-                    var user_id = datas['user_id'];
-                    console.log(user_id);
+                    var user_ids = 0;
+                    var users_id = datas['users_id'];
+                    console.log(users_id);
                     function init_map() {
                     var map = L.map('mapcontainer');
                     map.setView([35.7102, 139.8132], 10); //初期の中心位置とズームレベルを設定
                     //マーカーを表示
                     for (let i=0; i<data.length; i++){
-                        var name = data[i].name                    
-                        var long = data[i].longitude                    
-                        var lat = data[i].latitude
+                        var name = data[i].spots_name                    
+                        var long = data[i].spots_longitude                    
+                        var lat = data[i].spots_latitude
                         var newline = "<br>"
-                        var ex = data[i].address
-                        var url = data[i].url
+                        var ex = data[i].spots_address
+                        var url = data[i].spots_url
                         var url1 = url.substr( 32 );
                         var url2 = '<iframe width="300" height="200" src="https://www.youtube.com/embed/' + url1 + '" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';                        
                         var long_int = Number(long)
@@ -210,17 +210,18 @@
                                 type:'POST', //送信方法
                                 datatype: 'json', //受け取りデータの種類
                                 data:{
-                                    'id' : user_id
+                                    'users_id' : users_id
                                 }
                                 })
                                 // Ajax通信が成功した時
                                 .done( function(data) {
                                 console.log('通信成功');
-                                console.log(data[0]['count']);
+                                console.log(data[0]['spots_count']);
                                 for (let i=0; i<data.length; i++){
                                     n=0
                                     var id = `result${i}`
-                                    $(`#${id}`).html(data[i]['count'] + '人');
+                                    $(`#${id}`).html(data[i]['spots_count'] + '人');
+                                    console.log(data);
                                 };
                                 
                                 })
@@ -240,10 +241,10 @@
                 </div>
             <div class="col-md-2 p-0">
               <div class="card h-100">
-                <div class="card-header d-flex">登録地点一覧 <a class='ml-auto' href='/create'><i class="fas fa-plus-circle"></i></a></div>
+                <div class="card-header d-flex">登録地点一覧 <a class='ml-auto' href='api/create'><i class="fas fa-plus-circle"></i></a></div>
                 <div class="card-body p-2">
                 @foreach($spots as $spot)
-                  <a href="/edit/{{ $spot['id'] }}" class='d-block'>{{ $spot['name'] }}</a>
+                  <a href="/edit/{{ $spot['spots_id'] }}" class='d-block'>{{ $spot['spots_name'] }}</a>
                 @endforeach
                 </div>
               </div>    
