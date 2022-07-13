@@ -28,5 +28,5 @@ for i in range(len(db_lis)):
         conn.commit()
         cur.close()
         spot_id = db_lis[i][0]        
-        N = subprocess.Popen('python Python/Yolov5_DeepSort_Pytorch_test/main.py --source "%s" --class 2 --spot_id %s' % (url,int(spot_id)),shell=True)
+        N = subprocess.Popen('python Python/Yolov5_DeepSort_Pytorch_test/main.py --source "%s" --spot_id %s --yolo_model ./Python/Yolov5_DeepSort_Pytorch_test/model_weight/best.pt' % (url,int(spot_id)),shell=True)
 

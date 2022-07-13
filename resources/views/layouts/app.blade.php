@@ -241,7 +241,7 @@
                 </div>
             <div class="col-md-2 p-0">
               <div class="card h-100">
-                <div class="card-header d-flex">登録地点一覧 <a class='ml-auto' href='api/create'><i class="fas fa-plus-circle"></i></a></div>
+                <div class="card-header d-flex">登録地点一覧 <a class='ml-auto' href='/create'><i class="fas fa-plus-circle"></i></a></div>
                 <div class="card-body p-2">
                 @foreach($spots as $spot)
                   <a href="/edit/{{ $spot['spots_id'] }}" class='d-block'>{{ $spot['spots_name'] }}</a>

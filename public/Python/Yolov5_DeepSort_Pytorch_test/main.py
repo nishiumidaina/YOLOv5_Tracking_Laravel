@@ -25,6 +25,7 @@ import time
 import itertools
 import sqlite3
 #import datetime
+from matplotlib import path
 
 from decimal import Decimal
 from yolov5.models.experimental import attempt_load
@@ -48,11 +49,12 @@ import shutil
 
 
 def detect(opt):
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser()  
     parser.add_argument('--source', type=str, default='0', help='source')
     parser.add_argument('--classes', nargs='+', type=int, help='filter by class: --class 0, or --class 16 17')
     parser.add_argument('--spot_id', type=str, default=0)
     parser.add_argument('--save-txt', action='store_true', help='save MOT compliant results to *.txt')
+    parser.add_argument('--yolo_model', nargs='+', type=str, default='yolov5m.pt', help='model.pt path(s)')
 
     args = parser.parse_args()
 
@@ -170,7 +172,7 @@ def detect(opt):
     # Run tracking
     model.warmup(imgsz=(1 if pt else nr_sources, 3, *imgsz))  # warmup
     dt, seen = [0.0, 0.0, 0.0, 0.0], 0
-    for frame_idx, (path, im, im0s, vid_cap, s) in enumerate(dataset):
+    for frame_idx, (path1, im, im0s, vid_cap, s) in enumerate(dataset):
         t1 = time_sync()
         im = torch.from_numpy(im).to(device)
         im = im.half() if half else im.float()  # uint8 to fp16/32
@@ -181,7 +183,7 @@ def detect(opt):
         dt[0] += t2 - t1
 
         # Inference
-        visualize = increment_path(save_dir / Path(path[0]).stem, mkdir=True) if opt.visualize else False
+        visualize = increment_path(save_dir / Path(path1[0]).stem, mkdir=True) if opt.visualize else False
         pred = model(im, augment=opt.augment, visualize=visualize)
         t3 = time_sync()
         dt[1] += t3 - t2
@@ -210,15 +212,16 @@ def detect(opt):
                 cur.close()
                 exit()
 
+
             seen += 1
             if webcam:  # nr_sources >= 1
-                p, im0, _ = path[i], im0s[i].copy(), dataset.count
+                p, im0, _ = path1[i], im0s[i].copy(), dataset.count
                 p = Path(p)  # to Path
                 s += f'{i}: '
                 txt_file_name = p.name
                 save_path = str(save_dir / p.name)  # im.jpg, vid.mp4, ...
             else:
-                p, im0, _ = path, im0s.copy(), getattr(dataset, 'frame', 0)
+                p, im0, _ = path1, im0s.copy(), getattr(dataset, 'frame', 0)
                 p = Path(p)  # to Path
                 # video file
                 if source.endswith(VID_FORMATS):
@@ -244,10 +247,10 @@ def detect(opt):
                     n = (det[:, -1] == c).sum()  # detections per class
                     s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
                     # Print counter
-                    n_1 = (det[:, -1] == 2).sum() #ラベルAの総数をカウント
+                    n_1 = (det[:, -1] == 0).sum() #ラベルAの総数をカウント
                     a = f"{n_1} "#{'A'}{'s' * (n_1 > 1)}, "
-                    cv2.putText(im0, "BOX1_count" , (20, 50), 0, 1.0, (71, 99, 255), 3)
-                    cv2.putText(im0, "A : " + str(a), (20, 100), 0, 1.5, (71, 99, 255), 3)
+                    #cv2.putText(im0, "BOX1_count" , (20, 50), 0, 1.0, (71, 99, 255), 3)
+                    cv2.putText(im0, "Bicycle : " + str(a), (20, 50), 0, 0, (71, 99, 255), 3)
 
                     #停止ボタンによる処理
                     cur = conn.cursor(buffered=True)
@@ -294,38 +297,64 @@ def detect(opt):
                         cls = output[5]
                         conf = output[6]
 
-                        #print(id,output[0],output[1])
-                        id_out = int(math.floor(id))
-                        X_out= int(math.floor(output[0]))
-                        Y_out= int(math.floor(output[1]))
-                        #自転車の座標処理
-                        cur = conn.cursor(buffered=True)
-                        #print(spot_id)
-                        cur.execute("SELECT get_id FROM bicycles WHERE spots_id = '%s'" % spot_id)
-                        bicycle_lis = cur.fetchall()
-                        #print(bicycle_lis)
-                        if not id in bicycle_lis:
-                            cur.execute("INSERT INTO bicycles (spots_id,get_id,bicycles_x_coordinate,bicycles_y_coordinate) VALUES (%s, %s, %s, %s)", (spot_id,id_out,X_out,Y_out))
-                        elif id in bicycle_lis:
-                            cur.execute("UPDATE bicycles SET bicycles_x_coordinate = %s,bicycles_y_coordinate = %s WHERE get_id = %s AND spots_id = %s",(X_out, Y_out,id_out, spot_id))
+                        #ラベリングの配列
+                        #label = [["A","2,2","4,7","7,6","7,1"]]
+                        label = [["A", 0,350, 0,600, 625,675, 700, 600]]
+                        for il in range(len(label)):
+                            label_mame = label[il][0]
+                            P1X = label[il][1]
+                            P1Y = label[il][2]
+                            P2X = label[il][3]
+                            P2Y = label[il][4]
+                            P3X = label[il][5]
+                            P3Y = label[il][6]
+                            P4X = label[il][7]
+                            P4Y = label[il][8]
+                            polygon = path.Path(
+                                [
+                                    [P1X, P1Y],
+                                    [P2X, P2Y],
+                                    [P3X, P3Y],
+                                    [P4X, P4Y],
+                                ]
+                            )
+                            #XY座標の記録。Y座標は原点調整のために720~Y
+                            id_out = int(math.floor(id))
+                            X_out= int(math.floor(output[0]))
+                            Y_out= 720 - int(math.floor(output[1]))
+                            #座標の確認
+                            XY_out = polygon.contains_point([X_out, Y_out])
+                            if XY_out:
+                                
+                                #自転車の座標処理
+                                cur = conn.cursor(buffered=True)
+                                #print(spot_id)
+                                cur.execute("SELECT get_id FROM bicycles WHERE spots_id = '%s'" % spot_id)
+                                bicycle_lis = cur.fetchall()
+                                #print(bicycle_lis)
+                                if not id in bicycle_lis:
+                                    cur.execute("INSERT INTO bicycles (spots_id,get_id,bicycles_x_coordinate,bicycles_y_coordinate) VALUES (%s, %s, %s, %s)", (spot_id,id_out,X_out,Y_out))
+                                elif id in bicycle_lis:
+                                    cur.execute("UPDATE bicycles SET bicycles_x_coordinate = %s,bicycles_y_coordinate = %s WHERE get_id = %s AND spots_id = %s",(X_out, Y_out,id_out, spot_id))
 
-                        cur.execute("SELECT updated_at, created_at FROM bicycles WHERE spots_id = %s AND get_id = %s",(spot_id, id_out))
-                        time_lis = cur.fetchall()
-                        #print(time_lis)
+                                cur.execute("SELECT updated_at, created_at FROM bicycles WHERE spots_id = %s AND get_id = %s",(spot_id, id_out))
+                                time_lis = cur.fetchall()
+                                #print(time_lis)
 
-                        #放置時間計測
-                        out_time = 60 #違反時間を設定(秒数)
-                        time_dif = time_lis[0][0] - time_lis[0][1]
-                        time_total = time_dif.total_seconds() 
-                        if time_total >= out_time:
-                            #time_lis[3] = '違反車両'
-                            cur.execute("UPDATE bicycles SET bicycles_status = %s WHERE get_id = %s AND spots_id = %s",('違反', id_out, spot_id))
-                            if not id2 in id_violation:
-                                id_violation.append(id2)
-                        id_collect.append(int(math.floor(float(id2))))                           
-                        conn.commit()
-                        cur.close()                         
-                        #座標                     
+                                #放置時間計測
+                                out_time = 60 #違反時間を設定(秒数)
+                                time_dif = time_lis[0][0] - time_lis[0][1]
+                                time_total = time_dif.total_seconds() 
+                                if time_total >= out_time:
+                                    #time_lis[3] = '違反車両'
+                                    cur.execute("UPDATE bicycles SET bicycles_status = %s WHERE get_id = %s AND spots_id = %s",('違反', id_out, spot_id))
+                                    if not id2 in id_violation:
+                                        id_violation.append(id2)
+                                id_collect.append(int(math.floor(float(id2))))                           
+                                conn.commit()
+                                cur.close()
+                                print(id,X_out,Y_out)                         
+                        #座標
                         if save_txt:
                             # to MOT format
                             bbox_left = output[0]#X座標
